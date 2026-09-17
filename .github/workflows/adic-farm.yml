@@ -1,0 +1,120 @@
+name: CEREBRON Collatz Farm 03 Adic C256
+
+on:
+  push:
+    paths:
+      - '.github/workflows/adic-farm.yml'
+      - 'mission/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          R=[
+          ('P_ADIC_SPECIALIST','llama3b','llama-3.2','exact 2-adic cylinder and valuation constraints'),
+          ('THREE_ADIC_SPECIALIST','gemma9b','gemma-2','exact 3-adic endpoint and backward congruences'),
+          ('VALUATION_SPECIALIST','llama3b','llama-3.2','v2 structure and exact exponent-word realization'),
+          ('CRT_SPECIALIST','gemma9b','gemma-2','CRT compatibility without overclaiming global realizability'),
+          ('MODULAR_ARITHMETIC_SPECIALIST','llama3b','llama-3.2','modular obstruction search across 2^A and 3^n'),
+          ('DIOPHANTINE_SPECIALIST','gemma9b','gemma-2','joint residue-size and Diophantine bounds'),
+          ('STURMIAN_ADIC_SPECIALIST','gemma9b','gemma-2','adic behavior of balanced/mechanical words'),
+          ('ARCHIMEDEAN_ADIC_BRIDGE','gemma9b','gemma-2','couple residue classes to real first-return windows'),
+          ('BACKWARD_ITERATION_SPECIALIST','llama3b','llama-3.2','backward recursion modulo powers and positivity'),
+          ('RESIDUE_RATE_SPECIALIST','gemma9b','gemma-2','normalized 2-adic/3-adic residue growth rates'),
+          ('COUNTEREXAMPLE_HUNTER','llama3b','llama-3.2','construct arbitrarily long jointly compatible words if possible'),
+          ('FALSIFIER','llama3b','llama-3.2','attack any claimed uniform adic obstruction'),
+          ('COMPUTATIONAL_EXPERIMENTER','llama3b','llama-3.2','finite residue experiments only to falsify claims'),
+          ('PROOF_CREATOR_A','llama3b','llama-3.2','constructive adic obstruction proof attempt'),
+          ('PROOF_CREATOR_B','gemma9b','gemma-2','independent joint-residue theorem attempt'),
+          ('VERIFIER','gemma9b','gemma-2','rederive strongest congruence lemma independently'),
+          ('FORMAL_PROOF_AUDITOR','gemma9b','gemma-2','audit quantifiers and arbitrary-N scope'),
+          ('COUNTER_AUDITOR','llama3b','llama-3.2','attack verifier and formal audit'),
+          ('SYNTHESIZER','gemma9b','gemma-2','merge only surviving adic claims'),
+          ('JUDGE','gemma9b','gemma-2','PROVED/REFUTED/HOLD; CYCLES OPEN unless complete closure')]
+          print('matrix='+json.dumps({'include':[{'role':r,'model_id':m,'family':f,'focus':x} for r,m,f,x in R]},separators=(',',':')))
+          PY
+
+  adic-agent:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install --quiet hf-gradio
+      - name: Execute adic agent
+        env:
+          ROLE: ${{ matrix.role }}
+          MODEL_ID: ${{ matrix.model_id }}
+          FAMILY: ${{ matrix.family }}
+          FOCUS: ${{ matrix.focus }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json,os,importlib.util,hashlib
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('fw','worker/farm_worker.py'); fw=importlib.util.module_from_spec(spec); spec.loader.exec_module(fw)
+          reg={'llama3b':'huggingface-projects/llama-3.2-3B-Instruct','gemma9b':'huggingface-projects/gemma-2-9b-it'}
+          role=os.environ['ROLE']; mid=os.environ['MODEL_ID']; fam=os.environ['FAMILY']; focus=os.environ['FOCUS']
+          mission=Path('mission/C256-ADIC-FARM.md').read_text()
+          prompt=f'''CEREBRON OMEGA — COLLATZ FARM 03 ADIC\nROLE: {role}\nFOCUS: {focus}\n\n{mission}\n\nRULES: REALITY>COHERENCE; EVIDENCE>CONFIDENCE; CLAIM<=EVIDENCE; finite test != proof; local CRT solvability != global Collatz cycle; mark PROVED/HYPOTHESIS/UNKNOWN. No CYCLES CLOSED without arbitrary-N contradiction.'''
+          ok,text,meta=fw.invoke(reg[mid],prompt)
+          result={'schema':'cerebron-adic-farm-c256-v1','role':role,'model_id':mid,'model_family':fam,'ok':bool(ok),'response':text if ok else None,'response_sha256':hashlib.sha256(text.encode()).hexdigest() if ok and text else None,'meta':meta,'evidence_status':'UNREVIEWED_EXTERNAL_AGENT_OUTPUT' if ok else 'NO_EXTERNAL_OUTPUT'}
+          Path('out/result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adic-c256-${{ matrix.role }}
+          path: out/result.json
+          retention-days: 14
+
+  omega-fusion:
+    needs: adic-agent
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: adic-c256-*
+          path: results
+          merge-multiple: false
+      - shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[]
+          for p in Path('results').rglob('result.json'):
+            try: rows.append(json.loads(p.read_text()))
+            except: pass
+          ok=[r for r in rows if r.get('ok')]
+          Path('adic-c256-accounting.json').write_text(json.dumps({'schema':'cerebron-adic-c256-omega-v1','artifact_rows':len(rows),'successful_external_ai_calls':len(ok),'successful_model_families':sorted({r.get('model_family') for r in ok}),'successful_roles':sorted({r.get('role') for r in ok}),'claim_note':'Unaudited until Master Hub verification.'},ensure_ascii=False,indent=2)+'\n')
+          Path('adic-c256-packet.txt').write_text('\n\n'.join('ROLE '+str(r.get('role'))+' | '+str(r.get('model_family'))+'\n'+str(r.get('response') or '') for r in ok))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adic-c256-omega-packet
+          path: |
+            adic-c256-accounting.json
+            adic-c256-packet.txt
+          retention-days: 14
