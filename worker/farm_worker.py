@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import json, subprocess
 
+C42_1_CONTRACT = "CEREBRON C42.1 EXECUTION CONTRACT.\nEvery response MUST start exactly with:\nCEREBRON_MODE: <DIRECT|STRUCTURED|POLYMORPHIC|FULL>\nCEREBRON_VERSION: C42.1\nROLE: <role-or-function>\nEVIDENCE_STATUS: <status>\nThen preserve CLAIM, METHOD, ASSUMPTIONS, EVIDENCE, COUNTEREVIDENCE, DEPENDENCIES, PROVENANCE, COST, RESIDUAL, SMALLEST_REMAINING_GAP, NEXT_DECISIVE_TEST.\nREALITY>COHERENCE. EVIDENCE>CONFIDENCE. CLAIM<=EVIDENCE. COMPUTATION!=PROOF. SIMULATION!=TEST. CONSENSUS!=TRUTH. AGENT COUNT!=INTELLIGENCE. SAME MODEL/DATA!=INDEPENDENT EVIDENCE. WORKFLOW SUCCESS!=SCIENTIFIC SUCCESS. EXECUTION_STATE!=CANONICAL_STATE. MINORITY BLOCKERS MUST SURVIVE. CONSCIOUSNESS_STATUS=UNRESOLVED.\n\n"
+
 def _run(cmd, timeout=240):
     return subprocess.run(cmd,capture_output=True,text=True,timeout=timeout)
 
@@ -20,6 +22,7 @@ def _payload(spec,prompt):
     return out if used else None
 
 def invoke(space,prompt):
+    prompt = C42_1_CONTRACT + prompt
     info=_run(['hf-gradio','info',space],120)
     if info.returncode!=0: return False,'',{'stage':'info','error':(info.stderr or info.stdout)[-1000:]}
     try: api=json.loads(info.stdout)
